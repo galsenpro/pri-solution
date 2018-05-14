@@ -1,0 +1,79 @@
+postgresqlsonar:
+  image: orchardup/postgresql:latest
+  environment:
+    - POSTGRESQL_USER=sonar
+    - POSTGRESQL_PASS=xaexohquaetiesoo
+    - POSTGRESQL_DB=sonar
+  volumes:
+    - ./sonarqube/:/var/lib/postgresql
+  ports:
+    - "5432:5432"
+sonarqube:
+  image: harbur/sonarqube:latest
+  links:
+    - postgresqlsonar:db
+  environment:
+    - DB_USER=sonar
+    - DB_PASS=xaexohquaetiesoo
+    - DB_NAME=sonar
+  ports:
+    - "9000:9000"
+    - "443"
+postgresqlgit:
+  image: sameersbn/postgresql:9.4
+  environment:
+    - DB_USER=gitlab
+    - DB_PASS=password
+    - DB_NAME=gitlabhq_production
+  volumes:
+    - ./gitlab/postgresql:/var/lib/postgresql
+gitlab:
+  image: sameersbn/gitlab:7.11.2
+  links:
+    - redis:redisio
+    - postgresqlgit:postgresql
+    - ambassador:jenkins
+  ports:
+    - "10080:80"
+    - "10022:10022"
+  environment:
+    - TZ=Asia/Kolkata
+    - SMTP_ENABLED=false
+    - SMTP_DOMAIN=www.example.com
+    - SMTP_HOST=smtp.gmail.com
+    - SMTP_PORT=587
+    - SMTP_USER=mailer@example.com
+    - SMTP_PASS=password
+    - SMTP_STARTTLS=true
+    - SMTP_AUTHENTICATION=login
+    - GITLAB_TIMEZONE=Kolkata
+    - GITLAB_HOST=localhost
+    - GITLAB_PORT=10080
+    - GITLAB_SSH_PORT=10022
+    - GITLAB_EMAIL=admin@example.com
+    - GITLAB_EMAIL_REPLY_TO=noreply@example.com
+    - GITLAB_BACKUPS=daily
+    - GITLAB_BACKUP_TIME=01:00
+  volumes:
+    - ./gitlab/gitlab:/home/git/data
+redis:
+  image: sameersbn/redis:latest
+  volumes:
+    - ./gitlab/redis:/var/lib/redis
+jenkins:
+    build: ./jenkinsDocker/.
+    ports:
+        - "8080:8080"
+    volumes:
+        - ./jenkins:/var/jenkins_home
+    links:
+        - postgresqlsonar:db
+        - sonarqube:sonarqube
+        - ambassador:gitlab
+ambassador:
+  image: cpuguy83/docker-grand-ambassador
+  volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+  command:
+    -name prisolution_gitlab_1
+    -name prisolution_jenkins_1
