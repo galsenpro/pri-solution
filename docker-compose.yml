@@ -1,79 +1,142 @@
-postgresqlsonar:
-  image: orchardup/postgresql:latest
-  environment:
-    - POSTGRESQL_USER=sonar
-    - POSTGRESQL_PASS=xaexohquaetiesoo
-    - POSTGRESQL_DB=sonar
-  volumes:
-    - ./sonarqube/:/var/lib/postgresql
-  ports:
-    - "5432:5432"
-sonarqube:
-  image: harbur/sonarqube:latest
-  links:
-    - postgresqlsonar:db
-  environment:
-    - DB_USER=sonar
-    - DB_PASS=xaexohquaetiesoo
-    - DB_NAME=sonar
-  ports:
-    - "9000:9000"
-    - "443"
-postgresqlgit:
-  image: sameersbn/postgresql:9.4
-  environment:
-    - DB_USER=gitlab
-    - DB_PASS=password
-    - DB_NAME=gitlabhq_production
-  volumes:
-    - ./gitlab/postgresql:/var/lib/postgresql
-gitlab:
-  image: sameersbn/gitlab:7.11.2
-  links:
-    - redis:redisio
-    - postgresqlgit:postgresql
-    - ambassador:jenkins
-  ports:
-    - "10080:80"
-    - "10022:10022"
-  environment:
-    - TZ=Asia/Kolkata
-    - SMTP_ENABLED=false
-    - SMTP_DOMAIN=www.example.com
-    - SMTP_HOST=smtp.gmail.com
-    - SMTP_PORT=587
-    - SMTP_USER=mailer@example.com
-    - SMTP_PASS=password
-    - SMTP_STARTTLS=true
-    - SMTP_AUTHENTICATION=login
-    - GITLAB_TIMEZONE=Kolkata
-    - GITLAB_HOST=localhost
-    - GITLAB_PORT=10080
-    - GITLAB_SSH_PORT=10022
-    - GITLAB_EMAIL=admin@example.com
-    - GITLAB_EMAIL_REPLY_TO=noreply@example.com
-    - GITLAB_BACKUPS=daily
-    - GITLAB_BACKUP_TIME=01:00
-  volumes:
-    - ./gitlab/gitlab:/home/git/data
-redis:
-  image: sameersbn/redis:latest
-  volumes:
-    - ./gitlab/redis:/var/lib/redis
-jenkins:
-    build: ./jenkinsDocker/.
-    ports:
-        - "8080:8080"
+version: '2'
+services:
+  postgresqlsonar:
+    image: orchardup/postgresql:latest
+    environment:
+      - POSTGRESQL_USER=sonar
+      - POSTGRESQL_PASS=xaexohquaetiesoo
+      - POSTGRESQL_DB=sonar
     volumes:
-        - ./jenkins:/var/jenkins_home
+      - ./sonarqube/:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+  sonarqube:
+    image: sonarqube
     links:
-        - postgresqlsonar:db
-        - sonarqube:sonarqube
-        - ambassador:gitlab
-ambassador:
-  image: cpuguy83/docker-grand-ambassador
-  volumes:
-    - "/var/run/docker.sock:/var/run/docker.sock"
-  command:
-    -name prisolution_gitlab_1
-    -name prisolution_jenkins_1
+      - postgresqlsonar:db
+    ports:
+      - "9000:9000"
+      - "443"
+    environment:
+      - DB_USER=sonar
+      - DB_PASS=xaexohquaetiesoo
+      - DB_NAME=sonar
+  postgresqlgit:
+    image: sameersbn/postgresql:9.4
+    environment:
+      - DB_USER=gitlab
+      - DB_PASS=password
+      - DB_NAME=gitlabhq_production
+    volumes:
+      - ./gitlab/postgresql:/var/lib/postgresql
+  redis:
+    image: sameersbn/redis:latest
+    volumes:
+      - /root/docker/gitlab/redis:/var/lib/redis
+  gitlab:
+    image: sameersbn/gitlab:7.10.0
+    ports:
+      - "0.0.0.0:4430:443"
+      - "0.0.0.0:10022:22"
+    environment:
+      - GITLAB_BACKUPS=daily
+      - GITLAB_HOST=gitlab.myhost.com
+      - VIRTUAL_HOST=gitlab.myhost.com
+      - MAX_UPLOAD_SIZE=512m
+      - GITLAB_HTTPS=true
+      - GITLAB_SSH_PORT=10022
+      - SSL_CERTIFICATE_PATH=/home/git/data/certs/gitlab.crt
+      - SSL_KEY_PATH=/home/git/data/certs/gitlab.key
+      - SSL_DHPARAM_PATH=/home/git/data/certs/dhparam.pem
+      - SSL_SELF_SIGNED=true
+      - GITLAB_PORT=443
+      - SMTP_ENABLED=true
+      - SMTP_USER=mygmail@gmail.com
+      - SMTP_PASS=mygmailpassword
+      - DB_USER=gitlab
+      - DB_PASS=mydbpassword
+      - DB_NAME=gitlabhq_production
+      - GITLAB_EMAIL_REPLY_TO=noreply@example.com
+    volumes:
+      - /home/docker/gitlab/data:/home/git/data
+    links:
+      - redis:redisio
+      - postgresqlgit:postgresql
+      - ambassador:jenkins
+  jenkins:
+    image: istresearch/jenkins:latest
+    user: jenkins
+    volumes:
+      - /data/jenkins:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+       JENKINS_HOST_HOME: "/data/jenkins"
+    ports:
+      - "8080:8080"
+    links:
+      - postgresqlsonar:db
+      - sonarqube:sonarqube
+      - ambassador:gitlab
+  ambassador:
+    image: cpuguy83/docker-grand-ambassador
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    command:
+      - name prisolution_gitlab_1
+      - name prisolution_jenkins_1
+  mysql:
+    image: sameersbn/mysql:latest
+    environment:
+      - DB_USER=redmine
+      - DB_PASS=password
+      - DB_NAME=redmine_production
+    volumes:
+      - /srv/docker/redmine/mysql:/var/lib/mysql
+  redmine:
+    image: sameersbn/redmine:3.4.4-2
+    depends_on:
+      - mysql
+    environment:
+      - TZ=Asia/Kolkata
+
+      - DB_ADAPTER=mysql2
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=redmine
+      - DB_PASS=password
+      - DB_NAME=redmine_production
+      - REDMINE_PORT=10083
+      - REDMINE_HTTPS=false
+      - REDMINE_RELATIVE_URL_ROOT=
+      - REDMINE_SECRET_TOKEN=
+
+      - REDMINE_SUDO_MODE_ENABLED=false
+      - REDMINE_SUDO_MODE_TIMEOUT=15
+
+      - REDMINE_CONCURRENT_UPLOADS=2
+
+      - REDMINE_BACKUP_SCHEDULE=
+      - REDMINE_BACKUP_EXPIRY=
+      - REDMINE_BACKUP_TIME=
+
+      - SMTP_ENABLED=false
+      - SMTP_METHOD=smtp
+      - SMTP_DOMAIN=www.example.com
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=mailer@example.com
+      - SMTP_PASS=password
+      - SMTP_STARTTLS=true
+      - SMTP_AUTHENTICATION=:login
+
+      - IMAP_ENABLED=false
+      - IMAP_HOST=imap.gmail.com
+      - IMAP_PORT=993
+      - IMAP_USER=mailer@example.com
+      - IMAP_PASS=password
+      - IMAP_SSL=true
+      - IMAP_INTERVAL=30
+    ports:
+      - "10083:80"
+    volumes:
+      - /srv/docker/redmine/redmine:/home/redmine/data

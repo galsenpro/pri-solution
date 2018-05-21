@@ -1,0 +1,134 @@
+Quick Start
+
+Pour démarrer l'ensemble des services, exécuter la commande suivante :
+
+docker-compose up
+
+Cette commande va télécharger les images nécessaires au lancement des conteneurs et va démarrer ces derniers avec la configuration présente dans le fichier docker-compose.yml.
+Accès
+
+Jenkins : http://IP_ADDRESS:8080 SonarQube : http://IP_ADDRESS:9000 GitLab : http://IP_ADDRESS:10080
+
+Si les services sont déployés localement, il est possible de remplacer IP_ADDRESS par localhost
+
+Un compte est déjà présent dans GitLab, changer le mot de passe comme demandé après la connection:
+
+    username: root
+    password: 5iveL!fe
+
+Le compte d'administration par défaut de SonarQube est admin:admin.
+
+Attention aux instances Jenkins et SonarQube. Celles-ci sont accessibles sans identifiant, Pour une utilisation en production, elles devront être protégées par leur configurations respectives. Il est conseillé de ne pas utiliser les comptes déjà présents mais plutôt de créer des comptes supplémentaires et sécurisés pour une utilisation en production.
+
+Le lien de SonarQube présent sur l'interface de Jenkins n'est pas utilisable sans nom de domaine.
+Configuration initiale
+
+Il est nécessaire d'installer Git sur le poste client.
+
+Sur l'interface Web de Jenkins, aller dans Manage Jenkins > Configure System Cliquer sur Add Maven, décocher l'installation automatique, nommer l'instance maven et indiquer le chemin /usr/share/maven. Dans la partie SonarQube Installations, ajouter une instance. Appuyer sur le bouton Advanced et compléter avec les paramètres suivants.
+
+    Server URL : http://sonarqube:9000
+    Database URL : jdbc:postgresql://db:5432/sonar
+    Database password : xaexohquaetiesoo
+
+Ne pas oublier de sauvegarder.
+Utilisation
+
+Pour cet exemple, nous allons créer un projet sur l'interface de GitLab et y déposer notre code avec le client Git. Le code que nous allons utiliser est celui présent dans ce dépôt. C'est une petite application Java avec une classe principale de Hello World et une classe de test géré par Maven et le pom.xml.
+
+Dans GitLab
+
+    Créer un nouveau projet helloWorld. La configuration reste aux valeurs par défaut.
+
+Avec le client Git
+
+    Se placer dans le dossier helloWorld
+    Initialiser le dépôt local git init
+    Connecter le dépôt local et le dépôt distant git remote add origin http://localhost:10080/root/helloWorld.git
+    Ajouter l'ensemble du projet au prochain partage git add .
+    Commiter le contenu git commit -m "Commit Initial"
+    Pousser le code sur le dépôt distant git push -u origin master
+    Utiliser le compte utilisateur root et le mot de passe défini
+
+Dans Jenkins, créer un nouvel projet (New item) de type Maven. Nommer le projet HelloWorld.
+
+Configurer le projet avec Git et l'URL http://gitlab/root/helloWorld.git et ajouter les Credentials avec l'utilisateur root et le mot de passe que nous changé plus tôt. Dans la partie Build Triggers, cocher la construction périodique et indiquer le paramétrage suivant : H H * * 2-6. Ceci va exécuter une construction tous les soirs du lundi au vendredi à minuit. Ajouter SonarQube en tant que Post-build Actions. Ajouter Record Jacoco coverage report en tant que Post-build Actions.
+
+Sauvegarder la configuration
+
+Lancer trois build via l'interface de Jenkins et attendre le résultat.
+
+    Récupération des sources du projet sur le dépôt Git
+    Construction du projet avec Maven
+    Exécution des tests
+    Rapport de couverture des tests
+    Analyse de la qualité par SonarQube
+
+Le premier build va être affiché en rouge : la cause est la connection à SonarQube qui est initialisé juste après cet appel. Le code lui est valide comme indiqué dans le log de la console du build #1, seul un test est en échec. Le second build est instable (orange) car un test est en échec. Sur la page de présentation du projet de Jenkins, les résultats des tests et de la couverture des tests sont affichés sous forme de graphiques. Sur l'interface graphique de SonarQube, le rapport de qualité indique plusieurs défauts.
+Configuration Avancée
+Docker-compose
+
+Si vous souhaitez modifier le nom du dossier dans lequel est exécuté la commande docker-compose. Il faut également changer le paramétrage du conteneur ambassadeur dans le fichier docker-compose.yml.
+
+ambassador:
+  image: cpuguy83/docker-grand-ambassador
+  volumes:
+    - "/var/run/docker.sock:/var/run/docker.sock"
+  command: 
+    -name <NOM_DOSSIER>_gitlab_1 
+    -name <NOM_DOSSIER>_jenkins_1
+
+Documentation Officiel Docker-Compose Ambassador Pattern Linking
+GitLab
+
+GitLab est utilisable en l'état mais il est possible de le configurer plus précisément. Pour la configuration des mails les options suivantes sont disponibles et éditables dans le fichier docker-compose.yml. Pour activer les mails, mettre le paramètre SMTP_ENABLED à true et définir le compte à utiliser.
+
+    SMTP_ENABLED: Active l'utilisation des mails via SMTP. Par défaut, true si le paramètre SMTP_USER est défini.
+    SMTP_DOMAIN: SMTP domain. Defaut www.gmail.com
+    SMTP_HOST: adresse SMTP du serveur. Defaut smtp.gmail.com.
+    SMTP_PORT: port SMTP du serveur. Defaut 587.
+    SMTP_USER: nom d'utilisateur SMTP.
+    SMTP_PASS: mot de passe SMTP.
+    SMTP_STARTTLS: Active STARTTLS. Defaut true.
+    SMTP_OPENSSL_VERIFY_MODE: Mode de vérification OpenSSL. Valeur acceptées : none, peer, client_once et fail_if_no_peer_cert. Defaut none
+    SMTP_AUTHENTICATION: Spécifie la ùéthode d'authentification SMTP : Defaut login si la paramètre SMTP_USER est défini.
+
+Le reste des options est disponible sur la documentation du conteneur.
+
+Documentation Officiel GitLab Documentation Officiel Git
+ID 	Container 	App Version
+gitlab 	Badge 	v7.11.2
+postgresql 	Badge 	v9.4
+redis 	Badge 	latest
+Jenkins
+
+Documentation Officiel Jenkins
+ID 	Container 	App Version
+jenkinsLTS 	Badge 	LTS latest
+
+Les plugins préinstallés dans Jenkins sont définis dans le fichier jenkinsDocker/plugins.txt.
+
+git:2.3.5
+git-client:1.17.1
+mailer:1.15
+scm-api:0.2
+matrix-project:1.4
+ssh-credentials:1.11
+credentials:1.22
+promoted-builds:2.21
+maven-plugin:2.9
+token-macro:1.10
+parameterized-trigger:2.26
+gitlab-hook:1.4.0
+ruby-runtime:0.12
+jacoco:1.0.19
+dashboard-view:2.9.4
+sonar:2.2.1
+
+En cas de modification des plugins dans ce fichier, il faut forcer le build du conteneur avec la commande suivante.
+
+docker-compose build
+
+SonarQube
+
+Documentation Officiel SonarQube
